@@ -50,3 +50,7 @@ springdoc:
     path: /swagger-ui.html
     tags-sorter: alpha
     operations-sorter: alpha
+openweathermap:
+      api:
+        key: 830f55ac9bb9b699ba1069fe4821656b
+        url: https://api.openweathermap.org/data/2.5/weather
