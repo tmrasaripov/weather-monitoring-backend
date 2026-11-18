@@ -4,10 +4,12 @@ import com.weather.backend.dto.UserWeatherReportDto;
 import com.weather.backend.entity.Location;
 import com.weather.backend.entity.User;
 import com.weather.backend.entity.UserWeatherReport;
+import com.weather.backend.entity.WeatherAlert;
 import com.weather.backend.exception.ResourceNotFoundException;
 import com.weather.backend.repository.LocationRepository;
 import com.weather.backend.repository.UserRepository;
 import com.weather.backend.repository.UserWeatherReportRepository;
+import com.weather.backend.repository.WeatherAlertRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -23,6 +25,7 @@ public class UserWeatherReportService {
     private final UserWeatherReportRepository reportRepository;
     private final UserRepository userRepository;
     private final LocationRepository locationRepository;
+    private final WeatherAlertRepository alertRepository;
 
     @Transactional
     public UserWeatherReportDto createReport(String username, UserWeatherReportDto dto) {
@@ -68,6 +71,27 @@ public class UserWeatherReportService {
 
         report.setStatus(status);
         UserWeatherReport updated = reportRepository.save(report);
+
+        if (status == UserWeatherReport.ModerationStatus.APPROVED) {
+            String desc = (report.getComment() != null && !report.getComment().isBlank())
+                    ? report.getComment()
+                    : String.format("Наблюдение от @%s: %.1f°C, %s",
+                    report.getUser().getUsername(),
+                    report.getTemperature(),
+                    report.getConditionText());
+
+            WeatherAlert alert = WeatherAlert.builder()
+                    .location(report.getLocation())
+                    .title(String.format("%s (%.1f°C)", report.getConditionText(), report.getTemperature()))
+                    .description(desc)
+                    .severity(WeatherAlert.Severity.WARNING)
+                    .issuedAt(LocalDateTime.now())
+                    .expiresAt(LocalDateTime.now().plusHours(6))
+                    .build();
+
+            alertRepository.save(alert);
+        }
+
         return mapToDto(updated);
     }
 

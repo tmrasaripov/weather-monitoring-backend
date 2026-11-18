@@ -66,4 +66,11 @@ public class WeatherAlertService {
                 alert.getExpiresAt()
         );
     }
+    @Transactional
+    public void deleteAlert(Long id) {
+        if (!weatherAlertRepository.existsById(id)) {
+            throw new ResourceNotFoundException("Alert not found with id: " + id);
+        }
+        weatherAlertRepository.deleteById(id);
+    }
 }

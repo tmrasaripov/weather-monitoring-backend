@@ -2,6 +2,7 @@ package com.weather.backend.controller;
 
 import com.weather.backend.dto.LocationDto;
 import com.weather.backend.service.LocationService;
+import com.weather.backend.service.WeatherSyncService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -17,6 +18,7 @@ import java.util.List;
 public class LocationController {
 
     private final LocationService locationService;
+    private final WeatherSyncService weatherSyncService;
 
     @GetMapping
     public ResponseEntity<List<LocationDto>> getAllLocations() {
@@ -26,6 +28,15 @@ public class LocationController {
     @GetMapping("/{id}")
     public ResponseEntity<LocationDto> getLocationById(@PathVariable Long id) {
         return ResponseEntity.ok(locationService.getLocationById(id));
+    }
+
+    @PostMapping("/search")
+    public ResponseEntity<?> searchAndAddCity(@RequestParam String city) {
+        try {
+            return ResponseEntity.ok(weatherSyncService.searchAndSaveCity(city));
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body("Город не найден");
+        }
     }
 
     @PostMapping

@@ -27,10 +27,10 @@ public class AuthService {
     @Transactional
     public JwtResponse register(RegisterRequest request) {
         if (userRepository.existsByUsername(request.getUsername())) {
-            throw new BadRequestException("Username is already taken!");
+            throw new BadRequestException("Логин занят!");
         }
         if (userRepository.existsByEmail(request.getEmail())) {
-            throw new BadRequestException("Email is already in use!");
+            throw new BadRequestException("Почта уже используется");
         }
 
         User.Role role = request.getRole() != null ? request.getRole() : User.Role.ROLE_USER;
@@ -69,7 +69,7 @@ public class AuthService {
         String jwt = tokenProvider.generateToken(authentication);
 
         User user = userRepository.findByUsername(request.getUsername())
-                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("Пользователь не найден"));
 
         return new JwtResponse(
                 jwt,

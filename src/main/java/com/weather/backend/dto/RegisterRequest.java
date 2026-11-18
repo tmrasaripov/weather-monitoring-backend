@@ -12,17 +12,17 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor
 @AllArgsConstructor
 public class RegisterRequest {
-    @NotBlank(message = "Username is required")
-    @Size(min = 3, max = 50, message = "Username must be between 3 and 50 characters")
+    @NotBlank(message = "Укажите логин")
+    @Size(min = 3, max = 50, message = "Логин должен содержать от 3 до 50 символов")
     private String username;
 
-    @NotBlank(message = "Email is required")
-    @Email(message = "Email should be valid")
+    @NotBlank(message = "Укажите Email")
+    @Email(message = "Некорректный Email — введите адрес с @ и доменом (например: user@mail.ru)")
     private String email;
 
-    @NotBlank(message = "Password is required")
-    @Size(min = 6, max = 100, message = "Password must be at least 6 characters long")
+    @NotBlank(message = "Укажите пароль")
+    @Size(min = 6, max = 100, message = "Пароль должен содержать минимум 6 символов")
     private String password;
 
-    private User.Role role; // Optional, defaults to USER if null
+    private User.Role role;
 }

@@ -33,4 +33,10 @@ public class WeatherAlertController {
     public ResponseEntity<WeatherAlertDto> createAlert(@Valid @RequestBody WeatherAlertDto dto) {
         return new ResponseEntity<>(weatherAlertService.createAlert(dto), HttpStatus.CREATED);
     }
+    @DeleteMapping("/{id}")
+    @PreAuthorize("hasAnyRole('METEOROLOGIST', 'ADMIN')")
+    public ResponseEntity<Void> deleteAlert(@PathVariable Long id) {
+        weatherAlertService.deleteAlert(id); // или alertRepository.deleteById(id)
+        return ResponseEntity.noContent().build();
+    }
 }
