@@ -31,10 +31,38 @@
         .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; }
         .header h1 { font-size: 20px; font-weight: 700; }
         .user-badge { font-size: 12px; padding: 4px 10px; border-radius: 20px; background: var(--secondary-bg); color: var(--hint-color); font-weight: 500; }
-        .search-bar { display: flex; gap: 8px; margin-bottom: 14px; }
+        .search-wrapper { position: relative; margin-bottom: 14px; }
+        .search-bar { display: flex; gap: 8px; }
         .search-bar input { flex: 1; padding: 10px 14px; border-radius: 12px; border: 1px solid rgba(128,128,128,0.25); background: var(--secondary-bg); color: var(--text-color); font-size: 14px; outline: none; }
         .search-bar button { padding: 0 16px; border-radius: 12px; border: none; background: var(--button-color); color: var(--button-text); font-size: 14px; font-weight: 600; cursor: pointer; white-space: nowrap; }
         .search-bar button:disabled { opacity: 0.6; }
+        .city-suggestions {
+            position: absolute;
+            top: calc(100% + 4px);
+            left: 0;
+            right: 0;
+            background: var(--secondary-bg);
+            border: 1px solid rgba(128,128,128,0.25);
+            border-radius: 12px;
+            box-shadow: 0 8px 20px rgba(0,0,0,0.12);
+            z-index: 100;
+            max-height: 220px;
+            overflow-y: auto;
+            display: none;
+        }
+        .suggestion-item {
+            padding: 10px 14px;
+            font-size: 14px;
+            cursor: pointer;
+            border-bottom: 1px solid rgba(128,128,128,0.1);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 8px;
+        }
+        .suggestion-item:last-child { border-bottom: none; }
+        .suggestion-item:hover { background: rgba(36, 129, 204, 0.1); }
+        .suggestion-sub { font-size: 12px; color: var(--hint-color); }
         .search-error { font-size: 12px; color: #eb5757; margin-bottom: 10px; display: none; }
         .cities-scroll { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 8px; margin-bottom: 14px; scrollbar-width: none; }
         .cities-scroll::-webkit-scrollbar { display: none; }
@@ -104,9 +132,15 @@
     <span class="user-badge" id="tg-user">Гость</span>
 </div>
 
-<div class="search-bar">
-    <input type="text" id="city-search-input" placeholder="Найти город (напр. Казань, Tokyo)..." onkeydown="if(event.key==='Enter') searchCity()">
-    <button id="search-btn" onclick="searchCity()">+ Добавить</button>
+<div class="search-wrapper">
+    <div class="search-bar">
+        <input type="text" id="city-search-input" autocomplete="off"
+               placeholder="Найти город (напр. Казань, Tokyo)..."
+               oninput="onCitySearchInput()"
+               onkeydown="if(event.key==='Enter') searchCity()">
+        <button id="search-btn" onclick="searchCity()">+ Добавить</button>
+    </div>
+    <div class="city-suggestions" id="city-suggestions"></div>
 </div>
 <div class="search-error" id="search-error"></div>
 
@@ -299,6 +333,8 @@
     let allAlertsPage = 1;
     const ALERTS_PER_PAGE = 5;
 
+    let suggestTimer = null;
+
     if (jwtToken) {
         document.getElementById('auth-box').style.display = 'none';
         document.getElementById('report-box').style.display = 'block';
@@ -355,6 +391,87 @@
         }
         return result;
     }
+
+    function renderCitySuggestions(items) {
+        const box = document.getElementById('city-suggestions');
+        if (!items || items.length === 0) {
+            box.style.display = 'none';
+            box.innerHTML = '';
+            return;
+        }
+        box.innerHTML = items.map(item => {
+            const region = item.state ? `, ${item.state}` : '';
+            const country = item.country || '';
+            const searchValue = item.enName || item.name;
+            return `
+                <div class="suggestion-item" onclick="pickSuggestedCity('${searchValue.replace(/'/g, "\\'")}')">
+                    <span><b>${item.name}</b><span class="suggestion-sub">${region}</span></span>
+                    <span class="suggestion-sub">${country}</span>
+                </div>
+            `;
+        }).join('');
+        box.style.display = 'block';
+    }
+
+    function onCitySearchInput() {
+        clearTimeout(suggestTimer);
+        const query = document.getElementById('city-search-input').value.trim();
+        const box = document.getElementById('city-suggestions');
+
+        if (query.length < 2) {
+            box.style.display = 'none';
+            box.innerHTML = '';
+            return;
+        }
+
+        suggestTimer = setTimeout(async () => {
+            try {
+                const res = await fetch(`/api/locations/suggest?q=${encodeURIComponent(query)}`);
+                if (res.ok) {
+                    const results = await res.json();
+                    if (Array.isArray(results) && results.length > 0) {
+                        renderCitySuggestions(results);
+                        return;
+                    }
+                }
+            } catch (e) {}
+
+            try {
+                const fallbackRes = await fetch(
+                    `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(query)}&count=6&language=ru&format=json`
+                );
+                if (!fallbackRes.ok) {
+                    box.style.display = 'none';
+                    return;
+                }
+                const data = await fallbackRes.json();
+                const normalized = (data.results || []).map(item => ({
+                    name: item.name,
+                    enName: item.name,
+                    state: item.admin1 || '',
+                    country: item.country || ''
+                }));
+                renderCitySuggestions(normalized);
+            } catch (e) {
+                box.style.display = 'none';
+            }
+        }, 250);
+    }
+
+    function pickSuggestedCity(cityName) {
+        const input = document.getElementById('city-search-input');
+        const box = document.getElementById('city-suggestions');
+        input.value = cityName;
+        box.style.display = 'none';
+        searchCity();
+    }
+
+    document.addEventListener('click', (e) => {
+        if (!e.target.closest('.search-wrapper')) {
+            const box = document.getElementById('city-suggestions');
+            if (box) box.style.display = 'none';
+        }
+    });
 
     function populateAlertCitySelect() {
         const select = document.getElementById('new-alert-city');
@@ -476,10 +593,12 @@
         const input = document.getElementById('city-search-input');
         const btn = document.getElementById('search-btn');
         const errBox = document.getElementById('search-error');
+        const suggestBox = document.getElementById('city-suggestions');
         const query = input.value.trim();
 
         if (!query) return;
 
+        suggestBox.style.display = 'none';
         errBox.style.display = 'none';
         btn.disabled = true;
         btn.textContent = 'Поиск...';
@@ -505,7 +624,7 @@
                 if (tg.HapticFeedback) tg.HapticFeedback.notificationOccurred('success');
                 selectCity(newLoc.id);
             } else {
-                errBox.textContent = 'Город не найден. Попробуйте написать по-английски или проверьте название.';
+                errBox.textContent = 'Город не найден. Попробуйте выбрать вариант из подсказок или написать по-английски.';
                 errBox.style.display = 'block';
                 if (tg.HapticFeedback) tg.HapticFeedback.notificationOccurred('error');
             }
@@ -885,11 +1004,17 @@
                 loadAdminUsers();
             } else {
                 const errText = await res.text();
-                let cleanMessage = errText;
-                try {
-                    const parsed = JSON.parse(errText);
-                    if (parsed.message) cleanMessage = parsed.message;
-                } catch (e) {}
+                let cleanMessage = '';
+                if (errText.trim().startsWith('<')) {
+                    cleanMessage = 'Сервер временно недоступен (проверьте, запущен ли бэкенд на порту 8080)';
+                } else {
+                    try {
+                        const parsed = JSON.parse(errText);
+                        if (parsed.message) cleanMessage = parsed.message;
+                    } catch (e) {
+                        cleanMessage = errText;
+                    }
+                }
 
                 status.style.color = '#eb5757';
                 status.textContent = cleanMessage || (authMode === 'login'
